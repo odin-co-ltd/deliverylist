@@ -25,6 +25,9 @@ h1{font-size:30px;margin:8px 0 4px}
 .link{font-size:20px;word-break:break-all}
 .hide{display:none}
 .err{color:var(--bad);font-weight:700;line-height:1.6}
+.sheetwrap{max-width:1600px;margin:0 auto;padding:0 16px 60px}
+.sheetwrap h2{font-size:26px;margin:6px 0 10px}
+#chulgo{width:100%;height:calc(100vh - 30px);min-height:720px;border:2px solid var(--line);border-radius:14px;background:#fff}
 </style>
 </head>
 <body>
@@ -40,7 +43,7 @@ h1{font-size:30px;margin:8px 0 4px}
     <div class="note" id="help" style="margin-top:8px"></div>
   </div>
   <button class="big" id="go" disabled>오늘 택배 요청</button>
-  <div class="note" style="margin-top:12px">저장 위치: 구글 드라이브 택배 폴더, 파일 이름은 택배_리스트_날짜_시각</div>
+  <div class="note" style="margin-top:12px">저장 위치: 구글 드라이브 택배 폴더, 파일 이름은 택배_리스트 (매번 같은 파일을 새 내용으로 바꿉니다)</div>
 
   <div class="card hide" id="prog" style="margin-top:16px">
     <div class="row"><span>1 오딘 택배 가져오기</span><span class="tag t-wait" id="p1">대기</span></div>
@@ -61,13 +64,20 @@ h1{font-size:30px;margin:8px 0 4px}
 
   <div class="card hide" id="errCard"><div class="err" id="errText"></div></div>
 </div>
+<div class="sheetwrap hide" id="sheetwrap">
+  <h2>다음 단계: 택배 출고표</h2>
+  <iframe id="chulgo" src="chulgo.html" title="택배 출고표"></iframe>
+</div>
 
 <script>
 (function(){
   var $=function(i){return document.getElementById(i)};
   var d=new Date(), w='일월화수목금토'[d.getDay()];
   $('today').textContent='오늘 '+d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' ('+w+')';
-  var ready=false, busy=false;
+  var ready=false, busy=false, lastRows=null, frameReady=false, askedLast=false;
+  function pushRows(){var f=$('chulgo');if(lastRows&&frameReady&&f.contentWindow)f.contentWindow.postMessage({type:'tb-rows',rows:lastRows},location.origin);}
+  function showSheet(){var w=$('sheetwrap');var first=w.classList.contains('hide');w.classList.remove('hide');pushRows();if(first)setTimeout(function(){w.scrollIntoView({behavior:'smooth',block:'start'})},300);}
+  window.addEventListener('message',function(e){if(e.origin===location.origin&&e.data&&e.data.type==='tb-ready'){frameReady=true;pushRows();}});
   function send(o){window.postMessage(Object.assign({tbCmd:o.tbCmd},o),'*')}
   function setTag(id,ok,label){var e=$(id);e.textContent=label||(ok?'완료':'대기');e.className='tag '+(ok?'t-ok':'t-wait')}
   function showErr(t){$('errText').textContent=t;$('errCard').classList.remove('hide')}
@@ -86,7 +96,7 @@ h1{font-size:30px;margin:8px 0 4px}
   window.addEventListener('message',function(e){
     if(e.source!==window||!e.data||!e.data.tbReply)return;
     var m=e.data.msg;
-    if(m.type==='ready'){ready=true;setTag('st1',true);refresh();}
+    if(m.type==='ready'){ready=true;setTag('st1',true);refresh();if(!askedLast){askedLast=true;send({tbCmd:'last'});}}
     else if(m.type==='status'){
       ready=true;setTag('st1',true);
       setTag('st2',m.odin.loggedIn,m.odin.loggedIn?(m.odin.hasTemplate?'완료':'본보기 필요'):'대기');
@@ -101,6 +111,7 @@ h1{font-size:30px;margin:8px 0 4px}
       if(!m.google)h.push('확장프로그램 설정에서 구글 연결 주소와 비밀코드를 넣어 주세요.');
       $('help').textContent=h.join(' ');
     }
+    else if(m.type==='rows'){lastRows=m.rows;showSheet();}
     else if(m.type==='step'){prog(m.step,m.state,m.text)}
     else if(m.type==='done'){
       busy=false;$('go').disabled=false;
