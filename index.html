@@ -738,11 +738,89 @@ const LIST_URL='https://script.google.com/macros/s/AKfycbxsJAr8lfnv3CfN7q7D8mPaY
       }
       if(!j.rows.length){say('택배_리스트가 비어 있습니다. 관리자가 "택배리스트 요청"을 먼저 해야 합니다.');toast('택배 자료가 없습니다.');return;}
       applyLocalRows(j.rows);
+      if(window.__frLoad)window.__frLoad();
       say('구글시트 택배_리스트 · '+j.rows.length+'줄 · 시트 갱신 '+(j.updated||'시각 미확인'));
     }catch(e){say('시트를 읽지 못했습니다: '+e.message);toast('시트를 읽지 못했습니다.');}
     finally{busy=false;btn.disabled=false;btn.textContent='시트에서 새로 불러오기';}
   }
   $('#sheetload').onclick=()=>fetchSheet(false);
   fetchSheet(true);
+})();
+</script><style>
+#frbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;margin:0 0 16px;background:#edf6fa;border:1px solid #cbdfe7;border-radius:8px;font-size:13px}#frbar span{flex:1;min-width:220px}#frbar[data-s=err]{background:#fdeceb;border-color:#f0b8b2;color:#a13827}#frbar button{font-size:12px;padding:6px 9px}.sharedbar{display:none!important}
+</style>
+<script>
+// ===== 운임 기록: 선택하면 구글시트에 저장, 같은 품목·수량 건은 이전 선택을 추천 =====
+(function(){
+  const lsGet=k=>{try{return localStorage.getItem(k)||''}catch{return ''}};
+  const url=()=>LIST_URL||lsGet('tb_list_url');
+  const FR={recs:new Map(),hist:[],last:new Map(),pending:new Map(),timer:0,busy:false,force:false,loaded:false,savedAt:''};
+  const sig=g=>g.rows.filter(r=>!service(r)).map(r=>String(r.item||'').trim()+'×'+quantityNumber(r.qty)).sort().join('|');
+  const summ=g=>g.rows.filter(r=>!service(r)).map(r=>String(r.item||'').trim()+'×'+quantityNumber(r.qty)).join(' / ');
+  const val=c=>(c.name||'')+'|'+(c.rate||0)+'|'+(c.boxes||1);
+  const bar=document.createElement('div');bar.id='frbar';bar.innerHTML='<span id="frtext">운임 기록 연결 대기</span><button id="frrefresh">운임기록 새로고침</button>';
+  document.querySelector('.sharedbar').after(bar);
+  const say=(t,err)=>{$('#frtext').textContent=t;bar.dataset.s=err?'err':'ok';};
+  function fromRow(r){return {key:String(r[0]),date:String(r[1]),company:String(r[2]),customer:String(r[3]),sig:String(r[4]),summary:String(r[5]),name:String(r[6]),rate:Number(r[7])||0,boxes:Number(r[8])||1,at:String(r[9])};}
+  window.__frLoad=async function(){
+    const u=url();if(!u){say('운임 기록 주소가 없습니다.',true);return;}
+    try{
+      const code=lsGet('tb_code');
+      const r=await fetch(u+(u.includes('?')?'&':'?')+'action=freightList&year='+(($('#date').value||'').slice(0,4)||new Date().getFullYear())+(code?'&code='+encodeURIComponent(code):''),{cache:'no-store'});
+      const j=await r.json();if(!j.ok)throw Error(j.error||'읽기 실패');
+      FR.recs=new Map();FR.hist=[];
+      for(const row of j.recs){const rec=fromRow(row);FR.recs.set(rec.key,rec);}
+      FR.hist=[...FR.recs.values()];FR.loaded=true;FR.force=true;
+      say('운임 기록 연결됨 · 저장된 기록 '+FR.hist.length+'건'+(FR.savedAt?' · 마지막 저장 '+FR.savedAt:''));
+      render();
+    }catch(e){say('운임 기록을 읽지 못했습니다: '+e.message+' (앱스크립트를 새 버전으로 다시 배포했는지 확인)',true);}
+  };
+  $('#frrefresh').onclick=()=>window.__frLoad();
+  function queue(){
+    for(const g of visible){
+      const c=settings[g.key];if(!c)continue;
+      const cur=val(c),prev=FR.last.has(g.key)?FR.last.get(g.key):'|0|1';
+      if(cur===prev)continue;
+      FR.pending.set(g.key,{key:g.key,date:g.date,company:g.company,customer:g.customer,sig:sig(g),summary:summ(g),name:c.name||'',rate:c.rate||0,boxes:c.boxes||1,_v:cur});
+    }
+    if(FR.pending.size){say('운임 저장 대기…');clearTimeout(FR.timer);FR.timer=setTimeout(flush,700);}
+  }
+  async function flush(){
+    if(FR.busy||!FR.pending.size)return;
+    const u=url();if(!u){say('운임 기록 주소가 없어 저장하지 못했습니다.',true);return;}
+    FR.busy=true;
+    try{
+      for(const [k,rec] of [...FR.pending]){
+        const body=Object.assign({action:'freightSave'},rec);delete body._v;
+        const r=await fetch(u,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});
+        const j=await r.json();if(!j.ok)throw Error(j.error||'저장 실패');
+        if(FR.pending.get(k)===rec){FR.pending.delete(k);FR.last.set(k,rec._v);}
+        FR.recs.set(k,{...rec,at:j.savedAt});FR.hist=[...FR.recs.values()];
+        FR.savedAt=(j.savedAt||'').slice(11,16);
+      }
+      say('운임 저장됨 · '+FR.savedAt+' · 저장된 기록 '+FR.hist.length+'건');decorate();
+    }catch(e){say('운임 저장 실패: '+e.message+' — 15초 뒤 다시 시도합니다. 이 화면을 닫지 마세요.',true);clearTimeout(FR.timer);FR.timer=setTimeout(flush,15000);}
+    finally{FR.busy=false;if(FR.pending.size&&!FR.timer)FR.timer=setTimeout(flush,700);}
+  }
+  function restore(){
+    let changed=false;
+    for(const g of visible){
+      const rec=FR.recs.get(g.key);if(!rec||FR.pending.has(g.key))continue;
+      const c=settings[g.key];if(!c)continue;
+      const isDefault=!c.name&&!(c.rate>0)&&c.boxes===1;
+      if(!(FR.force||isDefault))continue;
+      const rv=rec.name+'|'+rec.rate+'|'+rec.boxes;
+      FR.last.set(g.key,rv);
+      if(val(c)!==rv){c.name=rec.name;c.rate=rec.rate;c.boxes=rec.boxes;changed=true;}
+    }
+    FR.force=false;return changed;
+  }
+  function decorate(){}
+  const _render=render,_save=save,_queue=queueSharedChanges;
+  render=function(){_render();if(restore()){try{_save()}catch{}_render();}decorate();};
+  save=function(){_save.apply(this,arguments);queue();};
+  queueSharedChanges=function(){try{_queue.apply(this,arguments)}catch{}queue();};
+  $('#company').onchange=render;$('#date').onchange=render;$('#services').onchange=render;
+  window.__frLoad();
 })();
 </script><script src="https://accounts.google.com/gsi/client" async data-company-google="true" onload="initializeCompanyGoogle()" onerror="document.getElementById('loginstatus').textContent='Google 로그인 버튼을 불러오지 못했습니다. 다시 불러오기를 눌러 주세요.'"></script></body></html>
