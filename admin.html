@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>택배리스트 요청</title>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--ink:#111;--sub:#555;--line:#d8dde6;--blue:#1f5fbf;--ok:#1a7f37;--warn:#b45309;--bad:#b42318}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Malgun Gothic",system-ui,sans-serif;font-size:20px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:30px;margin:8px 0 4px}
+.date{color:var(--sub);margin-bottom:18px}
+.card{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.tag{font-weight:700;padding:4px 12px;border-radius:20px;font-size:18px;white-space:nowrap}
+.t-ok{background:#dff5e5;color:var(--ok)}.t-wait{background:#fdf0d5;color:var(--warn)}.t-bad{background:#fde4e1;color:var(--bad)}
+.big{display:block;width:100%;font-size:28px;font-weight:700;padding:22px;border:0;border-radius:14px;background:var(--blue);color:#fff;cursor:pointer;margin-top:10px}
+.big:disabled{background:#9aa7bd;cursor:not-allowed}
+.big.gray{background:#444}
+.bar{height:22px;background:#e3e8f0;border-radius:11px;overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;width:0;background:var(--blue);transition:width .5s}
+.note{font-size:17px;color:var(--sub);line-height:1.6}
+.link{font-size:20px;word-break:break-all}
+.hide{display:none}
+.err{color:var(--bad);font-weight:700;line-height:1.6}
+.sheetwrap{max-width:1600px;margin:0 auto;padding:0 16px 60px}
+.sheetwrap h2{font-size:26px;margin:6px 0 10px}
+#chulgo{width:100%;height:calc(100vh - 30px);min-height:720px;border:2px solid var(--line);border-radius:14px;background:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>택배리스트 요청 <span style="font-size:18px;color:var(--sub)">(관리자용)</span></h1>
+  <a href="index.html" style="font-size:20px">← 택배 출고 화면(메인)으로</a>
+  <div class="date" id="today"></div>
+  <div class="card" style="padding:12px 18px"><label for="pickDate" style="font-weight:700">조회할 날짜</label>
+    <input type="date" id="pickDate" style="font-size:22px;padding:6px 10px;margin-left:10px;border:2px solid var(--line);border-radius:8px">
+    <button id="todayBtn" style="font-size:18px;padding:8px 14px;margin-left:8px;border:2px solid var(--line);border-radius:8px;background:#fff;cursor:pointer">오늘로</button>
+    <div class="note" id="dateNote" style="margin-top:6px"></div></div>
+
+  <div class="card" id="statusCard">
+    <div class="row"><span>1 크롬 확장프로그램 연결</span><span class="tag t-wait" id="st1">대기</span></div>
+    <div class="row"><span>2 오딘 이카운트 로그인</span><span class="tag t-wait" id="st2">대기</span></div>
+    <div class="row"><span>3 세광 이카운트 로그인</span><span class="tag t-wait" id="st3">대기</span></div>
+    <div class="row"><span>4 구글시트 연결 설정</span><span class="tag t-wait" id="st4">대기</span></div>
+    <div class="note" id="help" style="margin-top:8px"></div>
+  </div>
+  <button class="big" id="go" disabled>오늘 택배 요청</button>
+  <div class="note" style="margin-top:12px">저장 위치: 구글 드라이브 택배 폴더, 파일 이름은 택배_리스트 (매번 같은 파일을 새 내용으로 바꿉니다)</div>
+
+  <div class="card hide" id="prog" style="margin-top:16px">
+    <div class="row"><span>1 오딘 택배 가져오기</span><span class="tag t-wait" id="p1">대기</span></div>
+    <div class="row"><span>2 세광 택배 가져오기</span><span class="tag t-wait" id="p2">대기</span></div>
+    <div class="row"><span>3 포장비·조립비·택배비 줄 빼기, 연락처·주소 채우기</span><span class="tag t-wait" id="p3">대기</span></div>
+    <div class="row"><span>4 구글시트 만들기</span><span class="tag t-wait" id="p4">대기</span></div>
+    <div class="bar"><i id="bar"></i></div>
+    <div class="note" id="pct"></div>
+  </div>
+
+  <div class="card hide" id="done">
+    <div style="font-size:24px;font-weight:700" id="doneTitle"></div>
+    <div class="note" id="doneSub" style="margin:6px 0"></div>
+    <div class="link" id="doneLink"></div>
+    <a href="index.html"><button class="big" style="background:#1a7f37">택배 출고 화면 열기</button></a>
+    <a id="open" target="_blank" rel="noopener"><button class="big">구글시트 열기</button></a>
+    <button class="big gray" id="copy">주소 복사</button>
+  </div>
+
+  <div class="card hide" id="errCard"><div class="err" id="errText"></div></div>
+</div>
+
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i)};
+  var d=new Date(), w='일월화수목금토'[d.getDay()];
+  $('today').textContent='오늘 '+d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' ('+w+')';
+  var pad=function(n){return String(n).padStart(2,'0')};
+  var todayIso=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  function dayLabel(iso){var x=new Date(iso+'T00:00:00');return iso+' ('+'일월화수목금토'[x.getDay()]+')';}
+  function setBtn(){var v=$('pickDate').value||todayIso;$('go').textContent=(v===todayIso?'오늘':dayLabel(v))+' 택배 요청';
+    $('dateNote').textContent=(v>todayIso?'미래 날짜입니다. ':'')+(new Date(v+'T00:00:00').getDay()===0?'일요일은 택배가 없을 수 있습니다.':'');}
+  $('pickDate').value=todayIso;$('pickDate').max=todayIso;setBtn();
+  $('pickDate').onchange=function(){if(!$('pickDate').value)$('pickDate').value=todayIso;setBtn();};
+  $('todayBtn').onclick=function(){$('pickDate').value=todayIso;setBtn();};
+  var ready=false, busy=false, lastRows=null, frameReady=false, askedLast=false;
+  function pushRows(){}
+  function showSheet(){}
+  window.addEventListener('message',function(e){if(e.origin===location.origin&&e.data&&e.data.type==='tb-ready'){frameReady=true;pushRows();}});
+  function send(o){window.postMessage(Object.assign({tbCmd:o.tbCmd},o),'*')}
+  function setTag(id,ok,label){var e=$(id);e.textContent=label||(ok?'완료':'대기');e.className='tag '+(ok?'t-ok':'t-wait')}
+  function showErr(t){$('errText').textContent=t;$('errCard').classList.remove('hide')}
+  function refresh(){ if(busy)return; send({tbCmd:'status'}); }
+  setInterval(refresh,2500);
+  setTimeout(function(){ if(!ready){ setTag('st1',false,'연결 안 됨'); $('help').textContent='확장프로그램(택배리스트 도우미)이 설치되어 있어야 합니다. 설치 후 이 페이지를 새로고침해 주세요.'; } },2000);
+
+  var progMap={};
+  function prog(step,state,text){
+    var el=$('p'+step); if(!el)return;
+    el.textContent=state==='done'?'완료':'대기'; el.className='tag '+(state==='done'?'t-ok':'t-wait');
+    if(state==='done')progMap[step]=1;
+    var n=Object.keys(progMap).length; var pc=state==='run'?Math.max(n*25,10):n*25;
+    $('bar').style.width=pc+'%'; $('pct').textContent=(state==='run'?text+' · ':'')+pc+'%';
+  }
+  window.addEventListener('message',function(e){
+    if(e.source!==window||!e.data||!e.data.tbReply)return;
+    var m=e.data.msg;
+    if(m.type==='ready'){ready=true;setTag('st1',true);refresh();if(!askedLast){askedLast=true;send({tbCmd:'last'});}}
+    else if(m.type==='status'){
+      ready=true;setTag('st1',true);
+      setTag('st2',m.odin.loggedIn,m.odin.loggedIn?(m.odin.hasTemplate?'완료':'본보기 필요'):'대기');
+      setTag('st3',m.seko.loggedIn,m.seko.loggedIn?(m.seko.hasTemplate?'완료':'본보기 필요'):'대기');
+      setTag('st4',m.google,m.google?'완료':'설정 필요');
+      var ok=m.odin.loggedIn&&m.odin.hasTemplate&&m.seko.loggedIn&&m.seko.hasTemplate&&m.google;
+      $('go').disabled=!ok;
+      var h=[];
+      if(!m.odin.loggedIn)h.push('오딘 이카운트에 로그인해 주세요.');
+      if(!m.seko.loggedIn)h.push('세광 이카운트에 로그인해 주세요.');
+      if((m.odin.loggedIn&&!m.odin.hasTemplate)||(m.seko.loggedIn&&!m.seko.hasTemplate))h.push('본보기 필요: 해당 회사 이카운트 판매현황에서 프로젝트 칸에 택배를 넣고 검색을 한 번 눌러 주세요.');
+      if(!m.google)h.push('확장프로그램 설정에서 구글 연결 주소와 비밀코드를 넣어 주세요.');
+      $('help').textContent=h.join(' ');
+    }
+    else if(m.type==='rows'){lastRows=m.rows;showSheet();}
+    else if(m.type==='step'){prog(m.step,m.state,m.text)}
+    else if(m.type==='done'){
+      busy=false;$('go').disabled=false;
+      $('done').classList.remove('hide');
+      if(m.empty){$('doneTitle').textContent=dayLabel(m.date)+' 택배 0건';$('doneSub').textContent='이 날짜에는 프로젝트가 택배인 판매 전표가 없습니다. 구글시트는 만들지 않았고 기존 택배_리스트는 그대로 두었습니다. 위에서 다른 날짜를 골라 다시 요청해 주세요.';$('doneLink').textContent='';$('open').classList.add('hide');$('copy').classList.add('hide');prog(4,'done');$('p4').textContent='건너뜀';$('bar').style.width='100%';$('pct').textContent='택배 0건 · 구글시트 만들기 건너뜀';$('done').scrollIntoView({behavior:'smooth',block:'center'});return;}
+      $('open').classList.remove('hide');$('copy').classList.remove('hide');
+      $('doneTitle').textContent=dayLabel(m.date)+' 완료';
+      $('doneSub').textContent='오딘 '+m.counts['오딘']+'줄 + 세광 '+m.counts['세광']+'줄 = '+m.total+'줄';
+      $('doneLink').textContent=m.url;$('open').href=m.url;
+      $('copy').onclick=function(){navigator.clipboard.writeText(m.url).then(function(){$('copy').textContent='복사했습니다'})};
+    }
+    else if(m.type==='error'){busy=false;$('go').disabled=false;showErr(m.error);}
+  });
+  $('go').onclick=function(){
+    busy=true;$('go').disabled=true;progMap={};
+    ['p1','p2','p3','p4'].forEach(function(i){setTag(i,false)});
+    $('bar').style.width='0';$('pct').textContent='';
+    $('prog').classList.remove('hide');$('done').classList.add('hide');$('errCard').classList.add('hide');
+    send({tbCmd:'request',date:$('pickDate').value||todayIso});
+  };
+  refresh();
+})();
+</script>
+</body>
+</html>
