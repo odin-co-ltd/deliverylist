@@ -716,7 +716,7 @@ function reportHeight(){}
 try{parent.postMessage({type:'tb-ready'},location.origin)}catch{}
 </script><script>
 // ===== 구글시트(택배_리스트)에서 택배 자료 읽기 =====
-const LIST_URL='';   // 택배 앱스크립트 웹앱 /exec 주소 (비워 두면 ?u=주소 로 한 번 저장한 값을 씁니다)
+const LIST_URL='https://script.google.com/macros/s/AKfycbxsJAr8lfnv3CfN7q7D8mPaY9TJHi9A-ERNlUxMgeXzyoHzv2zHVGDHFdGuWonTqxCNrg/exec';   // 택배 앱스크립트 웹앱 /exec 주소 (비워 두면 ?u=주소 로 한 번 저장한 값을 씁니다)
 (function(){
   const lsGet=k=>{try{return localStorage.getItem(k)||''}catch{return ''}},lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch{}};
   const qs=new URLSearchParams(location.search);
