@@ -738,13 +738,13 @@ const LIST_URL='https://script.google.com/macros/s/AKfycbxsJAr8lfnv3CfN7q7D8mPaY
         if(j.needCode){const c=prompt('접속코드를 입력해 주세요.');if(c){lsSet('tb_code',c);busy=false;btn.disabled=false;btn.textContent='시트에서 새로 불러오기';return fetchSheet(quiet,fromOverride);}}
         throw Error(j.error||'읽기 실패');
       }
-      if(!j.rows.length){say('택배_리스트에 '+from+' 이후 자료가 없습니다. 관리자가 "택배리스트 요청"을 먼저 해야 합니다.');toast('택배 자료가 없습니다.');return;}
+      if(!j.rows.length){say('불러온 줄이 0개입니다. 서버 응답: '+(j.diag||j.note||'(진단 정보 없음 - 앱스크립트를 새 버전으로 다시 배포했는지 확인)'));toast('택배 자료가 없습니다.');return;}
       const keep=$('#date').value;
       loadedFrom=from;
       if(window.__frReset)window.__frReset();
       applyLocalRows(j.rows);
       if(fromOverride&&keep){$('#date').value=keep;render();}
-      say('구글시트 택배_리스트 · '+from+' 이후 '+j.rows.length+'줄 · 시트 갱신 '+(j.updated||'시각 미확인'));
+      say('구글시트 택배_리스트 · '+from+' 이후 '+j.rows.length+'줄 · 시트 갱신 '+(j.updated||'시각 미확인')+(j.diag?' · '+j.diag:''));
     }catch(e){say('시트를 읽지 못했습니다: '+e.message);toast('시트를 읽지 못했습니다.');}
     finally{busy=false;btn.disabled=false;btn.textContent='시트에서 새로 불러오기';}
   }
