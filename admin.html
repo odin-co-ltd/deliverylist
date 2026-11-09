@@ -83,7 +83,7 @@ h1{font-size:30px;margin:8px 0 4px}
   function dayLabel(iso){var x=new Date(iso+'T00:00:00');return iso+' ('+'일월화수목금토'[x.getDay()]+')';}
   function setBtn(){var v=$('pickDate').value||todayIso;$('go').textContent=(v===todayIso?'오늘':dayLabel(v))+' 택배 요청';
     $('dateNote').textContent=(v>todayIso?'미래 날짜입니다. ':'')+(new Date(v+'T00:00:00').getDay()===0?'일요일은 택배가 없을 수 있습니다.':'');}
-  $('pickDate').value=todayIso;$('pickDate').max=todayIso;setBtn();
+  $('pickDate').value=todayIso;setBtn();
   $('pickDate').onchange=function(){if(!$('pickDate').value)$('pickDate').value=todayIso;setBtn();};
   $('todayBtn').onclick=function(){$('pickDate').value=todayIso;setBtn();};
   var reqDate='',ready=false, busy=false, lastRows=null, frameReady=false, askedLast=false;
